@@ -11,9 +11,25 @@ namespace ThreadPoolExercises.Core
             //   HINT: you may use `Join` to wait until created Thread finishes
             // * In a loop, check whether `token` is not cancelled
             // * If an `action` throws and exception (or token has been cancelled) - `errorAction` should be invoked (if provided)
+            var thread = new Thread(ThreadStart) {IsBackground = true};
+            thread.Start();
+            thread.Join();
 
-
-
+            void ThreadStart()
+            {
+                try
+                {
+                    for (var i = 0; i < repeats; i++)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        action();
+                    }
+                }
+                catch (Exception e)
+                {
+                    errorAction?.Invoke(e);
+                }
+            }
         }
 
         public static void ExecuteOnThreadPool(Action action, int repeats, CancellationToken token = default, Action<Exception>? errorAction = null)
@@ -22,9 +38,30 @@ namespace ThreadPoolExercises.Core
             //   HINT: you may use `AutoResetEvent` to wait until the queued work item finishes
             // * In a loop, check whether `token` is not cancelled
             // * If an `action` throws and exception (or token has been cancelled) - `errorAction` should be invoked (if provided)
+            var autoResetEvent = new AutoResetEvent(false);
+            ThreadPool.QueueUserWorkItem(ThreadStart, autoResetEvent);
+            autoResetEvent.WaitOne();
 
-
-
+            void ThreadStart(object? args)
+            {
+                try
+                {
+                    for (var i = 0; i < repeats; i++)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        action();
+                    }
+                }
+                catch (Exception e)
+                {
+                    errorAction?.Invoke(e);
+                }
+                finally
+                {
+                    var waitHandle = args as AutoResetEvent; 
+                    waitHandle?.Set();
+                }
+            }
         }
     }
 }
