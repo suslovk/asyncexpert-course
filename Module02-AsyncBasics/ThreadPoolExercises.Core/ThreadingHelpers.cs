@@ -32,35 +32,39 @@ namespace ThreadPoolExercises.Core
             }
         }
 
-        public static void ExecuteOnThreadPool(Action action, int repeats, CancellationToken token = default, Action<Exception>? errorAction = null)
+        public static void ExecuteOnThreadPool(Action action, int repeats, CancellationToken token = default,
+            Action<Exception>? errorAction = null)
         {
             // * Queue work item to a thread pool that executes `action` given number of `repeats` - waiting for the execution!
             //   HINT: you may use `AutoResetEvent` to wait until the queued work item finishes
             // * In a loop, check whether `token` is not cancelled
             // * If an `action` throws and exception (or token has been cancelled) - `errorAction` should be invoked (if provided)
             var autoResetEvent = new AutoResetEvent(false);
-            ThreadPool.QueueUserWorkItem(ThreadStart, autoResetEvent);
+            var args = Tuple.Create(action, repeats, token, errorAction, autoResetEvent);
+            ThreadPool.QueueUserWorkItem(state => ThreadPoolWaitCallback(state!), args);
             autoResetEvent.WaitOne();
+        }
 
-            void ThreadStart(object? args)
+        private static void ThreadPoolWaitCallback(object args)
+        {
+            var (action, repeats, token, errorAction, autoResetEvent) =
+                (Tuple<Action, int, CancellationToken, Action<Exception>?, AutoResetEvent>) args!;
+
+            try
             {
-                try
+                for (var i = 0; i < repeats; i++)
                 {
-                    for (var i = 0; i < repeats; i++)
-                    {
-                        token.ThrowIfCancellationRequested();
-                        action();
-                    }
+                    token.ThrowIfCancellationRequested();
+                    action();
                 }
-                catch (Exception e)
-                {
-                    errorAction?.Invoke(e);
-                }
-                finally
-                {
-                    var waitHandle = args as AutoResetEvent; 
-                    waitHandle?.Set();
-                }
+            }
+            catch (Exception e)
+            {
+                errorAction?.Invoke(e);
+            }
+            finally
+            {
+                autoResetEvent?.Set();
             }
         }
     }
