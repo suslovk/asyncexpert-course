@@ -7,7 +7,8 @@ namespace AsyncAwaitExercises.Core
 {
     public class AsyncHelpers
     {
-        public static async Task<string> GetStringWithRetries(HttpClient client, string url, int maxTries = 3, CancellationToken token = default)
+        public static Task<string> GetStringWithRetries(HttpClient client, string url, int maxTries = 3,
+            CancellationToken token = default)
         {
             // Create a method that will try to get a response from a given `url`, retrying `maxTries` number of times.
             // It should wait one second before the second try, and double the wait time before every successive retry
@@ -22,8 +23,45 @@ namespace AsyncAwaitExercises.Core
             // * `HttpClient.GetAsync` does not accept cancellation token (use `GetAsync` instead)
             // * you may use `EnsureSuccessStatusCode()` method
 
-            return string.Empty;
+            if (maxTries < 2)
+                throw new ArgumentException(nameof(maxTries));
+
+            return Task.Run(() => InternalGetStringWithRetriesAsync(client, url, maxTries, token), token);
         }
 
+        private static async Task<string> InternalGetStringWithRetriesAsync(HttpClient client, string url, int maxTries,
+            CancellationToken token)
+        {
+            var attempt = 0;
+            
+            do
+            {
+                token.ThrowIfCancellationRequested();
+
+                try
+                {
+                    using var response = await client.GetAsync(url, token);
+                    response.EnsureSuccessStatusCode();
+                    return await response.Content.ReadAsStringAsync();
+                }
+                catch (Exception)
+                {
+                    if (attempt == maxTries)
+                        throw;
+                }
+
+                var timeout = GetTimeoutToWait(attempt);
+                await Task.Delay(timeout, token);
+            } while (attempt++ < maxTries);
+
+            // Unreachable code
+            return default;
+        }
+
+        private static TimeSpan GetTimeoutToWait(int attempt)
+        {
+            var timeoutSeconds = 1 << attempt;
+            return TimeSpan.FromSeconds(timeoutSeconds);
+        }
     }
 }
