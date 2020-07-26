@@ -1,5 +1,4 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,10 +19,17 @@ namespace TaskCombinatorsExercises.Core
             - how to merge tokens of operations (timeouts) with the provided token? 
             - Tip: you can link tokens with the help of CancellationTokenSource.CreateLinkedTokenSource(token)
          */
-        public static async Task<string> ConcurrentDownloadAsync(this HttpClient httpClient,
-            string[] urls, int millisecondsTimeout, CancellationToken token)
+        public static async Task<string> ConcurrentDownloadAsync(
+            this HttpClient httpClient,
+            string[] urls,
+            int millisecondsTimeout,
+            CancellationToken token)
         {
-            return String.Empty;
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(millisecondsTimeout);
+            var first = await Task.WhenAny(urls.Select(url => httpClient.GetAsync(url, cts.Token)));
+            cts.Cancel();
+            return await (await first).Content.ReadAsStringAsync();
         }
     }
 }
