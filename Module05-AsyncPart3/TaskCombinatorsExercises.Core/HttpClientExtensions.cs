@@ -29,7 +29,8 @@ namespace TaskCombinatorsExercises.Core
             cts.CancelAfter(millisecondsTimeout);
             var first = await Task.WhenAny(urls.Select(url => httpClient.GetAsync(url, cts.Token)));
             cts.Cancel();
-            return await (await first).Content.ReadAsStringAsync();
+            using var httpResponseMessage = await first;
+            return await httpResponseMessage.Content.ReadAsStringAsync();
         }
     }
 }
